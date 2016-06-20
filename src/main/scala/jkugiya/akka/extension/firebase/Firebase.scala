@@ -1,6 +1,7 @@
 package jkugiya.akka.extension.firebase
 
 import akka.actor.{ ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider }
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.{ FirebaseApp, FirebaseOptions }
 import com.typesafe.config.Config
@@ -33,19 +34,27 @@ trait Firebase extends Extension {
 
   /**
    * @param name application's name
-   * @return the database for application name
+   * @return the database for application
    */
   def databaseForAppName(name: String): FirebaseDatabase
 
+  /**
+   * @return default auth
+   */
+  def auth: FirebaseAuth
+
+  /**
+   * @param name application's name
+   * @return the auth for application
+   */
+  def authForAppName(name: String): FirebaseAuth
 }
 
 class FirebaseImpl(system: ExtendedActorSystem) extends Firebase {
 
   private lazy val rootConfig = system.settings.config.getConfig("ext-firebase")
 
-  val apps = collection.mutable.Map.empty[String, FirebaseApp]
-
-  def createFirebaseOptions(config: Config): FirebaseOptions = {
+  private def createFirebaseOptions(config: Config): FirebaseOptions = {
     val builder = new FirebaseOptions.Builder()
       .setDatabaseUrl(config.getString("database-url"))
     if (config.hasPath("service-account")) {
@@ -69,10 +78,14 @@ class FirebaseImpl(system: ExtendedActorSystem) extends Firebase {
     builder.build()
   }
 
-  val app = {
+  /**
+   * @return default application
+   */
+  override val app = {
     val firebaseOptions = createFirebaseOptions(rootConfig)
     FirebaseApp.initializeApp(firebaseOptions)
   }
+
   if (rootConfig.hasPath("apps")) {
     import collection.JavaConverters._
     for (cf <- rootConfig.getConfigList("apps").asScala) {
@@ -82,10 +95,34 @@ class FirebaseImpl(system: ExtendedActorSystem) extends Firebase {
     }
   }
 
-  val database = FirebaseDatabase.getInstance(app)
-
+  /**
+   * @param name application's name
+   * @return the application for name
+   */
   override def appForName(name: String): FirebaseApp = FirebaseApp.getInstance(name)
 
-  override def databaseForAppName(appName: String): FirebaseDatabase =
-    FirebaseDatabase.getInstance(appForName(appName))
+  /**
+   * @return default database
+   */
+  override val database = FirebaseDatabase.getInstance(app)
+
+  /**
+   * @param name application's name
+   * @return the database for application
+   */
+  override def databaseForAppName(name: String): FirebaseDatabase =
+    FirebaseDatabase.getInstance(appForName(name))
+
+  /**
+   * @return default auth
+   */
+  override def auth: FirebaseAuth = FirebaseAuth.getInstance(app)
+
+  /**
+   * @param name application's name
+   * @return the auth for application
+   */
+  override def authForAppName(name: String): FirebaseAuth =
+    FirebaseAuth.getInstance(appForName(name))
+
 }
