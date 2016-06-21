@@ -37,9 +37,7 @@ ref.setValue("Hello World!")
 Create database command handler:
 
 ```scala
-
 import akka.actor.{ Actor, ActorRef, Props }
-import com.google.firebase.tasks.{ Task, OnCompleteListener => OriginalOnCompleListener }
 import com.google.firebase.tasks.{ OnFailureListener => OriginalOnFailureListener }
 import jkugiya.akka.extension.firebase.Firebase
 
@@ -71,7 +69,7 @@ class DatabaseCommandHandler(path: String, appName: Option[String]) extends Acto
     Firebase(context.system).database.getReference(path)
   }
 
-  override def receive: Receive = {
+ def receive: Receive = {
     case SetValue(value, replyTo) =>
       val task = databaseReference.setValue(value)
       addOnFailureListener(task, replyTo)
@@ -79,6 +77,7 @@ class DatabaseCommandHandler(path: String, appName: Option[String]) extends Acto
       val task = databaseReference.removeValue()
       addOnFailureListener(task, replyTo)
     case UpdateChildren(children, replyTo) =>
+      import collection.JavaConverters._
       val task = databaseReference.updateChildren(children.asJava)
       addOnFailureListener(task, replyTo)
   }
@@ -89,6 +88,13 @@ class DatabaseCommandHandler(path: String, appName: Option[String]) extends Acto
 }
 
 class OnFailureListener(replyTo: ActorRef) extends OriginalOnFailureListener {
+  import DatabaseCommandHandler._
   override def onFailure(e: Exception): Unit = replyTo ! FailureEvent(e)
 }
+
+import akka.actor._
+import DatabaseCommandHandler._
+val system = ActorSystem()
+system.actorOf(Props(classOf[DatabaseCommandHandler], "example", None)) ! SetValue("Hello World", Actor.noSender)
 ```
+
